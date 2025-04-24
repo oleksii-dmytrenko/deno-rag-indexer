@@ -2,6 +2,7 @@ import { parseArgs } from "std/cli/parse_args.ts";
 import { z } from "zod";
 import { HumanMessage } from "npm:@langchain/core/messages";
 import { app } from "./workflow.ts";
+import { GraphState } from "./composer.ts";
 
 const ArgsSchema = z.object({
   url: z.string().url("Invalid URL format"),
@@ -36,20 +37,31 @@ async function main() {
     ],
   };
   
-  let finalState: any;
+  let finalState: typeof GraphState.State | undefined;
   for await (const output of await app.stream(inputs)) {
     for (const [key, value] of Object.entries(output)) {
       console.log(`${key} -->`);
-      finalState = value;
+      finalState = value as typeof GraphState.State;
     }
   }
   
-  const lastMessage = finalState.messages[finalState.messages.length - 1];
-  const content = lastMessage.content
+  if (!finalState) {
+    console.error("No response received");
+    Deno.exit(1);
+  }
+
+  const lastMessage = finalState.messages.at(-1);
+  if (!lastMessage) {
+    console.error("No message received");
+    Deno.exit(1);
+  }
+
+  const messageContent = String(lastMessage.content);
+  const content = messageContent
     .replace("<think>", "<details><summary>Thinking...</summary>")
     .replace("</think>", "</details>");
 
-  console.log(content)
+  console.log(content);
 }
 
 main();
